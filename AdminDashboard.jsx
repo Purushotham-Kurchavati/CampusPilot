@@ -1,63 +1,321 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { isAuthenticated, isAdmin, createStudentAccount, getAllStudents, deleteStudent, logoutUser } from '../utils/auth';
-import './admin.css';
+import { isAuthenticated, getCurrentUser, logoutUser } from '../utils/auth';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import './dashboard.css';
 
-const AdminDashboard = () => {
+// Ensure mapboxgl uses the correct access token
+mapboxgl.accessToken = 'pk.eyJ1IjoicHVydXNob3RoYW1rdXJjaGF2YXRpIiwiYSI6ImNtN3hpd3IxMDA1bzkyanBlNWkxdXZvbGsifQ.rd0SwLUWnCo5sji7LHJ62w';
+
+const Dashboard = () => {
   const navigate = useNavigate();
-  const [studentData, setStudentData] = useState({
-    username: '',
-    email: '',
-    password: ''
-  });
-  const [students, setStudents] = useState([]);
-  const [message, setMessage] = useState({ text: '', type: '' });
+  const [currentUser, setCurrentUser] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedUniversity, setSelectedUniversity] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [newEvent, setNewEvent] = useState({ date: '', title: '', time: '' });
+  const [userEvents, setUserEvents] = useState([]);
+  const [mapLoaded, setMapLoaded] = useState(false);
+  
+  // Sample university data
+  // Sample university data with corrected coordinates
+  const universities = [
+    {
+      id: 1,
+      name: 'Reva University',
+      location: 'Bangalore North',
+      established: '2004',
+      coordinates: [77.6346, 13.1158],
+      website: 'https://www.reva.edu.in',
+      events: ['Open Day - October 15', 'Tech Fest - November 5']
+    },
+    {
+      id: 2,
+      name: 'Indian Institute of Science (IISc)',
+      location: 'Bangalore Central',
+      established: '1909',
+      coordinates: [77.5671, 13.0212],
+      website: 'https://www.iisc.ac.in',
+      events: ['Research Symposium - October 22', 'Industry Connect - November 18']
+    },
+    {
+      id: 3,
+      name: 'CMR University',
+      location: 'Near Kempegowda International Airport, Bagalur Main Rd, Bengaluru',
+      established: '2013',
+      coordinates: [77.6594, 13.1181],
+      website: 'https://www.cmr.edu.in',
+      events: ['Open Day - October 25', 'Campus Tour - November 5']
+    },
+    {
+      id: 4,
+      name: 'Indira Gandhi National Open University',
+      location: 'No. 70-46-30/11, Ward No. 117, BMTC Old Divisional Office (South Ground Floor, below Auto RTO 57 Office, Shanti Nagar, Bengaluru, Karnataka 560027',
+      established: '1985',
+      coordinates: [77.5996, 12.9520],
+      website: 'https://ignouadmission.samarth.edu.in/',
+      events: ['Admission Counseling - October 20', 'Distance Learning Seminar - November 10']
+    },
+    {
+      id: 5,
+      name: 'Christ University',
+      location: 'DHARMARAM COLLEGE, Hosur Main Road, Bhavani Nagar, Post, Bengaluru, Karnataka 560029',
+      established: '1969',
+      coordinates: [77.6068, 12.9356],
+      website: 'https://christuniversity.in/',
+      events: ['Cultural Fest - November 15', 'Academic Symposium - December 5']
+    }
+  ];
 
   useEffect(() => {
-    // Temporarily comment out authentication check for testing
-    // if (!isAuthenticated() || !isAdmin()) {
+    // For development, temporarily disable authentication check
+    // if (!isAuthenticated()) {
     //   navigate('/login');
     //   return;
     // }
-    loadStudents();
+    
+    setCurrentUser({username: 'Purushotham Kurchavati'});
   }, [navigate]);
 
-  const loadStudents = () => {
-    try {
-      const allStudents = getAllStudents();
-      setStudents(Array.isArray(allStudents) ? allStudents : []);
-      console.log("Loaded students:", allStudents);
-    } catch (error) {
-      console.error("Error loading students:", error);
-      setMessage({ text: "Error loading students", type: "error" });
-    }
-  };
-
-  const handleChange = (e) => {
-    setStudentData({
-      ...studentData,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const result = createStudentAccount(studentData);
+  // Map container ref
+  const mapContainer = useRef(null);
+  const map = useRef(null);
+  
+  // Add these state variables at the top with your other state declarations
+  const [customMarkers, setCustomMarkers] = useState([]);
+  const [isAddingMarker, setIsAddingMarker] = useState(false);
+  
+  // In your useEffect where you initialize the map, make sure to add this:
+  // In your map initialization useEffect
+  useEffect(() => {
+    if (!mapContainer.current) return;
     
-    if (result.success) {
-      setStudentData({ username: '', email: '', password: '' });
-      setMessage({ text: result.message, type: 'success' });
-      loadStudents();
-    } else {
-      setMessage({ text: result.message, type: 'error' });
+    // Check if map is already initialized
+    if (map.current) return;
+    
+    console.log("Initializing map...");
+    
+    try {
+      // Create the map instance with your custom style
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/purushothamkurchavati/cm7yd775z00uy01sd7jtd3c9c',
+        center: [77.5946, 13.0216], // Updated to center of Bangalore
+        zoom: 10
+      });
+      
+      // Add navigation controls
+      map.current.addControl(new mapboxgl.NavigationControl());
+      
+      // When map loads, add university markers
+      // Add this after the map loads but before the end of the load event handler
+      map.current.on('load', () => {
+        console.log("Map loaded successfully");
+        setMapLoaded(true);
+        
+        // Add CMR University campus boundary
+        map.current.addSource('cmr-campus', {
+          'type': 'geojson',
+          'data': {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "properties": {
+                  "name": "CMR University Campus"
+                },
+                "geometry": {
+                  "coordinates": [
+                    [
+                      [77.6543485737754, 13.12137413569502],
+                      [77.6543485737754, 13.114886167683565],
+                      [77.66449428154402, 13.114886167683565],
+                      [77.66449428154402, 13.12137413569502],
+                      [77.6543485737754, 13.12137413569502]
+                    ]
+                  ],
+                  "type": "Polygon"
+                }
+              }
+            ]
+          }
+        });
+        
+        // Add a fill layer for the campus
+        map.current.addLayer({
+          'id': 'cmr-campus-fill',
+          'type': 'fill',
+          'source': 'cmr-campus',
+          'layout': {},
+          'paint': {
+            'fill-color': '#4285F4',
+            'fill-opacity': 0.2
+          }
+        });
+        
+        // Add an outline layer for the campus
+        map.current.addLayer({
+          'id': 'cmr-campus-outline',
+          'type': 'line',
+          'source': 'cmr-campus',
+          'layout': {},
+          'paint': {
+            'line-color': '#4285F4',
+            'line-width': 2
+          }
+        });
+        
+        // Add a popup for the campus boundary
+        map.current.on('click', 'cmr-campus-fill', (e) => {
+          new mapboxgl.Popup()
+            .setLngLat(e.lngLat)
+            .setHTML('<h3>CMR University Campus</h3><p>Main campus area</p>')
+            .addTo(map.current);
+        });
+        
+        // Change cursor on hover
+        map.current.on('mouseenter', 'cmr-campus-fill', () => {
+          map.current.getCanvas().style.cursor = 'pointer';
+        });
+        
+        map.current.on('mouseleave', 'cmr-campus-fill', () => {
+          map.current.getCanvas().style.cursor = '';
+        });
+        
+        // Add university markers - UPDATED CODE
+        universities.forEach(uni => {
+          // Create blue pin markers for all universities
+          const el = document.createElement('div');
+          el.className = 'blue-pin-marker';
+          
+          const marker = new mapboxgl.Marker({
+            element: el,
+            anchor: 'bottom'
+          })
+          .setLngLat(uni.coordinates)
+          .addTo(map.current);
+          
+          // Create popup content
+          const popupHtml = `
+            <h3>${uni.name}</h3>
+            <p><strong>Location:</strong> ${uni.location}</p>
+            <p><strong>Established:</strong> ${uni.established}</p>
+            <p><a href="${uni.website}" target="_blank" rel="noopener noreferrer">Visit Website</a></p>
+          `;
+          
+          // Add popup to marker
+          const popup = new mapboxgl.Popup({
+            closeButton: true,
+            closeOnClick: true
+          }).setHTML(popupHtml);
+          
+          // Attach popup to marker
+          marker.setPopup(popup);
+        });
+      });
+      
+      // Add click handler for custom markers
+      map.current.on('click', (e) => {
+        if (isAddingMarker) {
+          console.log("Adding marker at:", e.lngLat);
+          
+          // Create a blue pin marker similar to the ones in the image
+          const el = document.createElement('div');
+          el.className = 'blue-pin-marker';
+          
+          new mapboxgl.Marker({
+            element: el,
+            draggable: true,
+            anchor: 'bottom'
+          })
+          .setLngLat([e.lngLat.lng, e.lngLat.lat])
+          .setPopup(new mapboxgl.Popup().setHTML(`
+            <h3>Custom Location</h3>
+            <p>Latitude: ${e.lngLat.lat.toFixed(4)}</p>
+            <p>Longitude: ${e.lngLat.lng.toFixed(4)}</p>
+          `))
+          .addTo(map.current);
+          
+          setCustomMarkers(prev => [...prev, {
+            id: Date.now(),
+            coordinates: [e.lngLat.lng, e.lngLat.lat],
+            name: 'Custom Location'
+          }]);
+          
+          setIsAddingMarker(false);
+        }
+      });
+      
+      // Handle map errors
+      map.current.on('error', (e) => {
+        console.error("Map error:", e);
+      });
+    } catch (error) {
+      console.error("Error initializing map:", error);
     }
+    
+    // Clean up on unmount
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+    };
+  }, [isAddingMarker]);
+  
+  // Then in your render method, make sure to add the map controls:
+  // In the Map Section of your return statement:
+  const handleMonthChange = (change) => {
+    console.log(`Change month by ${change}`);
   };
 
-  const handleDeleteStudent = (id) => {
-    const result = deleteStudent(id);
-    if (result.success) {
-      setMessage({ text: result.message, type: 'success' });
-      loadStudents();
+  const handleDateClick = (date) => {
+    setSelectedDate(date.toISOString().split('T')[0]);
+    setShowCalendarModal(true);
+  };
+
+  const handleAddEvent = (e) => {
+    e.preventDefault();
+    
+    const event = {
+      id: Date.now(),
+      ...newEvent
+    };
+    
+    setUserEvents([...userEvents, event]);
+    setNewEvent({ date: '', title: '', time: '' });
+    setShowCalendarModal(false);
+    
+    alert(`Tour scheduled for ${event.title} on ${event.date} at ${event.time}`);
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    const results = universities.filter(uni => 
+      uni.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      uni.location.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    setSearchResults(results);
+  };
+  
+  const handleViewUniversity = (uni) => {
+    setSelectedUniversity(uni);
+    
+    if (map.current) {
+      map.current.flyTo({
+        center: uni.coordinates,
+        zoom: 14,
+        essential: true
+      });
     }
   };
 
@@ -67,95 +325,180 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="admin-container">
-      <div className="admin-header">
-        <h1>Admin Dashboard</h1>
+    <div className="dashboard-container">
+      <div className="dashboard-header">
+        <h1>Campus Tour App</h1>
         <button onClick={handleLogout} className="logout-btn">Logout</button>
       </div>
       
-      {message.text && (
-        <div className={`message ${message.type}`}>
-          {message.text}
-          <button onClick={() => setMessage({ text: '', type: '' })}>×</button>
-        </div>
-      )}
+      <div className="welcome-banner">
+        <h2>Welcome, {currentUser.username || currentUser.email}!</h2>
+        <p>Explore universities and upcoming campus events</p>
+      </div>
       
-      <div className="admin-content">
-        <div className="create-student-form">
-          <h2>Create Student Account</h2>
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label htmlFor="username">Username</label>
-              <input
-                type="text"
-                id="username"
-                name="username"
-                value={studentData.username}
-                onChange={handleChange}
-                required
-              />
-            </div>
+      {/* Search Section */}
+      <div className="search-container">
+        <h3>Find Universities</h3>
+        <form onSubmit={handleSearch} className="search-box">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search by name or location..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <button type="submit" className="search-btn">Search</button>
+        </form>
+        
+        {searchResults.length > 0 && (
+          <div className="search-results">
+            {searchResults.map(uni => (
+              <div key={uni.id} className="university-card">
+                <h4>{uni.name}</h4>
+                <p><strong>Location:</strong> {uni.location}</p>
+                <p><strong>Established:</strong> {uni.established}</p>
+                <button 
+                  className="view-btn"
+                  onClick={() => handleViewUniversity(uni)}
+                >
+                  View Details
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {selectedUniversity && (
+          <div className="university-details">
+            <button 
+              className="back-btn"
+              onClick={() => setSelectedUniversity(null)}
+            >
+              ← Back to Results
+            </button>
+            <h3>{selectedUniversity.name}</h3>
+            <p><strong>Location:</strong> {selectedUniversity.location}</p>
+            <p><strong>Established:</strong> {selectedUniversity.established}</p>
+            <p><strong>Website:</strong> <a href={selectedUniversity.website} target="_blank" rel="noopener noreferrer">{selectedUniversity.website}</a></p>
             
-            <div className="form-group">
-              <label htmlFor="email">Email</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={studentData.email}
-                onChange={handleChange}
-                required
-              />
+            <div className="events-list">
+              <h4>Upcoming Events</h4>
+              {selectedUniversity.events && selectedUniversity.events.length > 0 ? (
+                <ul>
+                  {selectedUniversity.events.map((event, index) => (
+                    <li key={index}>{event}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No upcoming events</p>
+              )}
             </div>
-            
-            <div className="form-group">
-              <label htmlFor="password">Password</label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={studentData.password}
-                onChange={handleChange}
-                required
-              />
-            </div>
-            
-            <button type="submit">Create Account</button>
-          </form>
+          </div>
+        )}
+      </div>
+      
+      {/* Map Section */}
+      <div className="map-container">
+        <h3>University Campus Map</h3>
+        <div className="map-controls">
+          <button 
+            className={`add-marker-btn ${isAddingMarker ? 'active' : ''}`}
+            onClick={() => setIsAddingMarker(!isAddingMarker)}
+          >
+            {isAddingMarker ? 'Cancel Marking' : 'Add Custom Marker'}
+          </button>
+          {isAddingMarker && <p className="marker-hint">Click anywhere on the map to place a marker</p>}
+        </div>
+        <div ref={mapContainer} className="map-wrapper" style={{ height: '400px' }}></div>
+        {!mapLoaded && <p>Loading map...</p>}
+      </div>
+      
+      {/* Calendar Section */}
+      <div className="calendar-container">
+        <h3>Campus Tour Calendar</h3>
+        <div className="calendar-header">
+          <button className="calendar-nav-btn" onClick={() => handleMonthChange(-1)}>Previous</button>
+          <h4>{new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+          <button className="calendar-nav-btn" onClick={() => handleMonthChange(1)}>Next</button>
         </div>
         
-        <div className="student-list">
-          <h2>Student Accounts</h2>
-          {students.length === 0 ? (
-            <p>No student accounts found</p>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Username</th>
-                  <th>Email</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map(student => (
-                  <tr key={student.id}>
-                    <td>{student.username}</td>
-                    <td>{student.email}</td>
-                    <td>
-                      <button onClick={() => handleDeleteStudent(student.id)}>
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        <div className="calendar-grid">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="calendar-day-header">{day}</div>
+          ))}
+          
+          {Array(35).fill(null).map((_, index) => {
+            const day = index - new Date().getDay() + 1;
+            const date = new Date();
+            date.setDate(day);
+            
+            // Check if this date has events
+            const hasEvents = universities.some(uni => 
+              uni.events && uni.events.some(event => event.includes(date.toLocaleString('default', { month: 'long' })))
+            );
+            
+            return (
+              <div 
+                key={index} 
+                className={`calendar-day ${day === new Date().getDate() ? 'today' : ''} ${hasEvents ? 'has-events' : ''}`}
+                onClick={() => handleDateClick(date)}
+              >
+                {day > 0 && day <= new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate() ? day : ''}
+              </div>
+            );
+          })}
         </div>
       </div>
+      
+      {/* Event Modal */}
+      {showCalendarModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Schedule Campus Tour</h3>
+            <button className="close-modal" onClick={() => setShowCalendarModal(false)}>×</button>
+            
+            <form onSubmit={handleAddEvent}>
+              <div className="form-group">
+                <label>Date</label>
+                <input 
+                  type="date" 
+                  value={newEvent.date} 
+                  onChange={(e) => setNewEvent({...newEvent, date: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>University</label>
+                <select 
+                  value={newEvent.title} 
+                  onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
+                  required
+                >
+                  <option value="">Select University</option>
+                  {universities.map(uni => (
+                    <option key={uni.id} value={uni.name}>{uni.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label>Time</label>
+                <input 
+                  type="time" 
+                  value={newEvent.time} 
+                  onChange={(e) => setNewEvent({...newEvent, time: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <button type="submit" className="add-event-btn">Schedule Tour</button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default AdminDashboard;
+export default Dashboard;
