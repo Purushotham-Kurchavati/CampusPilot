@@ -1,0 +1,140 @@
+.admin-container {
+    min-height: 100vh;
+    background-color: #1a1a1a;
+    color: white;
+    font-family: 'Arial', sans-serif;
+    padding: 20px;
+  }
+  
+  .admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #444;
+  }
+  
+  .admin-header h1 {
+    color: #4a90e2;
+    margin: 0;
+  }
+  
+  .logout-btn {
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  
+  .admin-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+  }
+  
+  .create-student-form, .student-list {
+    background-color: #2a2a2a;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  }
+  
+  .create-student-form h2, .student-list h2 {
+    margin-top: 0;
+    color: #4a90e2;
+    border-bottom: 1px solid #444;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .form-group {
+    margin-bottom: 15px;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+  }
+  
+  .form-group input {
+    width: 100%;
+    padding: 10px;
+    background-color: #3a3a3a;
+    border: none;
+    border-radius: 4px;
+    color: white;
+  }
+  
+  .create-btn {
+    background-color: #2ecc71;
+    color: white;
+    border: none;
+    padding: 10px;
+    width: 100%;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  table th, table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #444;
+  }
+  
+  table th {
+    background-color: #333;
+  }
+  
+  .delete-btn {
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .message {
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .message.success {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+  }
+  
+  .message.error {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+  }
+  
+  .close-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 20px;
+    cursor: pointer;
+  }
+  
+  @media (max-width: 768px) {
+    .admin-content {
+      grid-template-columns: 1fr;
+    }
+  }

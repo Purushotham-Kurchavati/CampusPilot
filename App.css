@@ -1,0 +1,20 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  body {
+    font-family: 'Arial', sans-serif;
+    background-color: #1a1a1a;
+    color: white;
+  }
+  
+  a {
+    text-decoration: none;
+    color: #4a90e2;
+  }
+  
+  button {
+    cursor: pointer;
+  }
